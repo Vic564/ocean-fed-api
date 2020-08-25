@@ -1,7 +1,7 @@
 ## Ocean-fed-API
 
-Students project
-Nodejs
-Express
-MongoDB
-Mongoose
+Students project  
+Nodejs  
+Express  
+MongoDB  
+Mongoose  
