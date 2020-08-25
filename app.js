@@ -1,12 +1,10 @@
 const express = require('express')
 const mongoose = require('mongoose');
+const bodyparser = require('body-parser');
 var cors = require('cors')
 const app = express();
 
-var corsOptions = {
-  origin: 'http://localhost:3000',
-  optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
-}
+app.use(cors());
 
 if (process.env.NODE_ENV !== 'production') require('dotenv').config();
 
@@ -16,20 +14,24 @@ const Guest = require("./models/guest");
 const dbConfig = require('./config/config');
 const port = process.env.PORT || 4000;
 
-app.use(express.urlencoded({ extended: true }));
+app.use(bodyparser.json());
 
 app.get('/', (req, res) => {
   res.send('Ocean api works!')
 })
 
-app.get('/create', cors(corsOptions), async (req, res) => {
+app.post('/create', async (req, res) => {
+
+  await console.log("hey");
+  await console.log(req.body);
 
   const newGuest = new Guest();
-  newGuest.name = "Roger";
-  newGuest.email = "roger@gmail.com";
-  newGuest.phone = "0705843795";
+  newGuest.name = req.body.name;
+  newGuest.email = req.body.email;
+  newGuest.phone = req.body.phone;
 
   await newGuest.save();
+  /* const allGuests = await Guest.find(); */
 
   res.send('newGuest saved!');
 })
