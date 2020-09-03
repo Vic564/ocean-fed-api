@@ -21,6 +21,16 @@ app.get('/', (req, res) => {
   res.send("<h1 style='text-align: center'>DEV MSG:<br> L'OCÉAN API WORKS!</h1>");
 });
 
+app.get('/reservations', async (req, res) => {
+  const reservations = await Reservation.find();
+  res.send(reservations);
+});
+
+app.get('/guests', async (req, res) => {
+  const guests = await Guest.find();
+  res.send(guests);
+});
+
 app.post('/reservations-by-date', async (req, res) => {
 
   await console.log(req.body.date);
