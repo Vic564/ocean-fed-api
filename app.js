@@ -1,21 +1,31 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const bodyparser = require("body-parser");
+const nodemailer = require("nodemailer");
+const sendGridTransport = require("nodemailer-sendgrid-transport");
 const cors = require("cors");
 const app = express();
+if (process.env.NODE_ENV !== "production") require("dotenv").config();
 
 app.use(cors());
-
-if (process.env.NODE_ENV !== "production") require("dotenv").config();
 
 // Our models
 const Guest = require("./models/guest");
 const Reservation = require("./models/reservation");
 
-const dbConfig = require("./config/config");
+const config = require("./config/config");
 const port = process.env.PORT || 4000;
 
 app.use(bodyparser.json());
+
+// Nodemailer
+const transport = nodemailer.createTransport(
+  sendGridTransport({
+    auth: {
+      api_key: config.mail,
+    },
+  })
+);
 
 app.get("/", (req, res) => {
   res.send("<h1 style='text-align: center'>DEV MSG:<br> L'OCÉAN API WORKS!</h1>");
@@ -35,6 +45,24 @@ app.post("/delete-reservation", async (req, res) => {
   await console.log(req.body.refId);
   const deletedReservationResponse = await Reservation.deleteOne({ refId: req.body.refId });
   res.send("just deleted " + JSON.stringify(deletedReservationResponse.deletedCount) + " reservation.");
+});
+
+app.post("/cancel-reservation", async (req, res) => {
+  await console.log(req.body.refIdToCancel);
+
+  await Reservation.findOne({ refId: req.body.refIdToCancel }, async (err, doc) => {
+    if (err) return console.log("there was an error", err);
+    if (doc) {
+      const guestWhoIsGoingToCancel = await Guest.findOne({ _id: doc.guestId});
+      console.log(guestWhoIsGoingToCancel);
+      await doc.remove( async (err, doc) => {
+        if (err) return console.log("there was an error", err);
+        if (doc) console.log("document removed", doc);
+        await sendCancellationConfirmationEmail(guestWhoIsGoingToCancel.email);
+        res.send("just cancelled reservation with ref " + JSON.stringify(doc.refId));
+      })
+    }
+  })
 });
 
 app.post("/update-reservation", async (req, res) => {
@@ -62,14 +90,6 @@ app.post("/update-reservation", async (req, res) => {
       }
     }
   );
-});
-
-// get to deleteall is DEV, made as a shorcut for deleting all entries in GUEST table.
-app.get("/deleteall", async (req, res) => {
-  const responseGuest = await Guest.deleteMany();
-  const responseReservation = await Reservation.deleteMany();
-  console.log(responseGuest.deletedCount + responseReservation.deletedCount + " model(s) deleted.");
-  res.send(JSON.stringify(responseGuest.deletedCount + responseReservation.deletedCount) + " model(s) deleted.");
 });
 
 app.post("/reservations-by-date", async (req, res) => {
@@ -116,6 +136,9 @@ app.post("/create-guest-and-reservation", async (req, res) => {
         const reservationsDB = await Reservation.find();
         console.log("GUESTS IN DB: ", guestsDB);
         console.log("RESERVATIONS IN DB: ", reservationsDB);
+
+        await sendReservationConfirmationEmail(req.body.guestData.email, refId);
+
         res.send({ guestsDB, reservationsDB });
       });
     });
@@ -148,6 +171,9 @@ app.post("/create-guest-and-reservation", async (req, res) => {
           const reservationsDB = await Reservation.find();
           console.log("GUESTS IN DB: ", guestsDB);
           console.log("RESERVATIONS IN DB: ", reservationsDB);
+
+          await sendReservationConfirmationEmail(req.body.guestData.email, refId);
+
           res.send({ guestsDB, reservationsDB });
         });
       }
@@ -155,9 +181,33 @@ app.post("/create-guest-and-reservation", async (req, res) => {
   }
 });
 
+function sendReservationConfirmationEmail(userEmail, refId) {
+  transport.sendMail({
+    to: userEmail,
+    from: "no-reply@locean.com",
+    subject: "Bokning klar!",
+    html:
+      "<h1>Du har bokat ett bord hos Restaurangen L'Océan! Välkomnen.</h1><br><p>Your bokningreferens: " +
+      refId +
+      "</p><p>Your email: " +
+      userEmail +
+      "</p><p>Vill du avboka? Följa länken: <a href='http://localhost:3000/cancel'>Avbokning sida<a>.</p>",
+  });
+}
+
+function sendCancellationConfirmationEmail(userEmail) {
+  transport.sendMail({
+    to: userEmail,
+    from: "no-reply@locean.com",
+    subject: "Du har avbokat",
+    html:
+      "<h1>Du har avbokat ett bord hos Restaurangen L'Océan!</h1><p>Vill du boka igen? Följa länken: <a href='http://localhost:3000/reservation'>Bokning sida<a>.</p>",
+  });
+}
+
 const dbOptions = { useUnifiedTopology: true, useNewUrlParser: true, useCreateIndex: true, useFindAndModify: false };
 
 // Start servern
-mongoose.connect(dbConfig.databaseURL, dbOptions).then(() => {
+mongoose.connect(config.databaseURL, dbOptions).then(() => {
   app.listen(port, () => console.log(`App listening on port ${port}! http://localhost:4000`));
 });
