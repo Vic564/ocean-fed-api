@@ -27,6 +27,8 @@ const transport = nodemailer.createTransport(
   })
 );
 
+
+// Dev routes:
 app.get("/", (req, res) => {
   res.send("<h1 style='text-align: center'>DEV MSG:<br> L'OCÉAN API WORKS!</h1>");
 });
